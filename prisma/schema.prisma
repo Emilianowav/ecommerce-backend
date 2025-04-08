@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  customer
+}
+
+model UserAuth {
+  id           Int        @id @default(autoincrement())
+  username     String     @unique
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(customer)
+  lastLogin    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  isActive    Boolean   @default(true)
+  profile      UserProfile? 
+}
+
+model UserProfile {
+  id               Int              @id @default(autoincrement())
+  fullName         String
+  phone           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  isActive    Boolean   @default(true)
+  // Relaciones
+  shippingAddresses ShippingAddress[]
+  paymentMethods    PaymentMethod[]
+  orders           Order[]
+  cart              Cart?
+
+  auth            UserAuth           @relation(fields: [id], references: [id], onDelete: Cascade)
+}
+
+model ShippingAddress {
+  id          Int      @id @default(autoincrement())
+  name        String
+  profileId   Int
+  profile     UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  addressLine1 String
+  addressLine2 String?
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  orders      Order[]
+  isActive    Boolean   @default(true)
+  @@unique([name, profileId])
+}
+
+model PaymentMethod {
+  id          Int      @id @default(autoincrement())
+  name        String
+  profileId   Int
+  profile     UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type        String
+  details     String
+  createdAt   DateTime @default(now())
+  orders      Order[]
+  isActive    Boolean   @default(true)
+}
+
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String
+  price       Decimal   @default(0.00)
+  stock       Int       @default(0)
+  categories  Category[]
+  images      Image[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  orderItems  OrderItem[]
+  cartItem    CartItem[]
+  isActive    Boolean   @default(true)
+
+  // ultima migracion
+  slug        String?   @unique
+  colors      String[]
+  sizes       String[]
+}
+
+model Category {
+  id               Int        @id @default(autoincrement())
+  name             String     @unique
+  parentCategoryId Int?
+  parentCategory   Category?  @relation("CategoryParent", fields: [parentCategoryId], references: [id])
+  children         Category[] @relation("CategoryParent")
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  isActive         Boolean    @default(true)
+
+  // Relación implícita many-to-many con Product.
+  products         Product[]
+}
+
+
+
+
+
+model Image {
+  id        Int      @id @default(autoincrement())
+  url       String
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade) 
+}
+
+
+model Cart {
+  id         Int      @id @default(autoincrement())
+  profileId  Int      @unique
+  profile    UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  items      CartItem[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model CartItem {
+  id         Int      @id @unique @default(autoincrement())
+  cartId     Int
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Order {
+  id                Int      @id @default(autoincrement())
+  profileId         Int
+  profile           UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  status           String   @default("pending")
+  totalPrice       Decimal  @default(0.00)
+  shippingAddressId Int
+  shippingAddress  ShippingAddress @relation(fields: [shippingAddressId], references: [id])
+  paymentMethodId  Int
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  items          OrderItem[]
+  orderTracking  OrderTracking?
+  isActive    Boolean   @default(true) 
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id])
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model OrderTracking {
+  id              Int      @id @default(autoincrement())
+  trackingNumber  String
+  shippingCompany String
+  status          String   // "in_transit", "delivered", etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  orderId         Int      @unique
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
